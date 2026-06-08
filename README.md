@@ -1,10 +1,15 @@
 # linear-tinker
 
-A lightweight F1 race day notifier that runs on GitHub Actions and pushes alerts to your phone via [ntfy.sh](https://ntfy.sh) — no sign-ups, no API keys.
+A lightweight sports notifier for F1 and World Cup 2026 that runs on GitHub Actions and pushes alerts to your phone via [ntfy.sh](https://ntfy.sh) — no sign-ups, no API keys.
 
 ## Overview
 
-Every morning at 06:00 UTC, GitHub Actions runs a small Python script that fetches the F1 race calendar, checks if today is a Grand Prix day, and fires a push notification if it is. Notifications are delivered through ntfy.sh, which is free and requires no account.
+Two GitHub Actions workflows run automatically:
+
+- **Morning check** (06:00 UTC daily) — fires a "Race Day" or "Match Day" alert for every event starting today
+- **Pre-start check** (every 5 min, 04:00–23:00 UTC) — fires a "starting in ~N minutes" alert when an event is about to begin
+
+Notification times are shown in your local timezone (configured in `config.yaml`). Alerts are delivered via ntfy.sh, which is free and requires no account.
 
 ## Project Structure
 
@@ -12,11 +17,16 @@ Every morning at 06:00 UTC, GitHub Actions runs a small Python script that fetch
 linear-tinker/
 ├── .github/
 │   └── workflows/
-│       └── cron.yml        # GitHub Actions workflow (daily cron + manual trigger)
+│       ├── morning.yml       # Daily 06:00 UTC race/match day alert
+│       └── prestart.yml      # Every 5 min pre-start T-minus alert
 ├── scripts/
-│   └── notifier.py         # F1 calendar checker and notification sender
-├── tests/                  # Verification (behavioral guarantees)
-├── requirements.txt        # Python dependencies
+│   ├── notifier.py           # Orchestrator — reads config, runs sport checks
+│   └── sports/
+│       ├── f1.py             # F1 calendar fetcher
+│       └── world_cup.py      # World Cup schedule fetcher
+├── tests/
+├── config.yaml               # All user-editable settings
+├── requirements.txt
 ├── README.md
 └── .gitignore
 ```
@@ -38,11 +48,30 @@ linear-tinker/
 
 ### 3. That's it
 
-The workflow runs automatically every day at 06:00 UTC. You can also trigger it manually from the **Actions** tab via **workflow_dispatch**.
+Both workflows run automatically. You can also trigger either one manually from the **Actions** tab via **workflow_dispatch**.
+
+## Configuration
+
+Everything lives in `config.yaml` at the root — no code changes needed for common tweaks.
+
+```yaml
+notifications:
+  ntfy_topic: "your-topic"       # overridden by NTFY_TOPIC GitHub secret
+  pre_start_minutes: 10          # how early to send the T-minus alert
+  timezone: "Africa/Nairobi"     # times in messages shown in this zone
+
+sports:
+  f1:
+    enabled: true                # set false to silence F1 alerts
+  world_cup:
+    enabled: true                # set false to silence World Cup alerts
+```
+
+Any [tz database timezone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) works for the `timezone` field.
 
 ## Demo
 
-To test the full notification path locally without waiting for a race day:
+To test the full notification path locally:
 
 ```powershell
 # 1. Install dependencies
@@ -51,16 +80,19 @@ pip install -r requirements.txt
 # 2. Set your ntfy topic (PowerShell)
 $env:NTFY_TOPIC = "your_topic_here"
 
-# 3. Run — reports no race if today isn't a GP day
-python scripts/notifier.py
+# 3. Morning mode — checks if today is a race/match day
+python scripts/notifier.py --mode morning
+
+# 4. Pre-start mode — checks if anything starts in the next 10 minutes
+python scripts/notifier.py --mode prestart
 ```
 
-To force a notification, temporarily hardcode a known race date inside `check_f1_schedule()`:
+To force a notification without waiting for a real event, temporarily set a known date in `run_morning()` inside `notifier.py`:
 
 ```python
-# swap the live date line for a fixed one
-from datetime import date
 today = date(2026, 6, 14)  # Barcelona GP
+# or
+today = date(2026, 6, 11)  # World Cup opener: Mexico vs South Africa
 ```
 
 Run it, notification lands on your phone, then revert.
@@ -69,12 +101,14 @@ Run it, notification lands on your phone, then revert.
 
 | Package | Purpose |
 |---|---|
-| `requests` | HTTP calls to fetch the calendar and post notifications |
-| `pytz` | Timezone-aware date comparison |
+| `requests` | HTTP calls to fetch calendars and post notifications |
+| `pytz` | Timezone conversion for local time display |
+| `pyyaml` | Parses `config.yaml` |
 
-## Configuration
+## Upcoming Events
 
-| Variable | Default | Description |
-|---|---|---|
-| `NTFY_TOPIC` | `my_testing_f1_topic_999` | The ntfy.sh topic to push alerts to. Set via GitHub secret. |
-| `CALENDAR_URL` | sportstimes GitHub JSON | F1 race calendar source. |
+| Date | Event |
+|---|---|
+| Jun 11 | ⚽ World Cup opens — Mexico vs South Africa |
+| Jun 14 | 🏎️ Barcelona-Catalunya Grand Prix |
+| Jul 19 | ⚽ World Cup Final |
