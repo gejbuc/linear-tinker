@@ -8,17 +8,21 @@ notifications:
   # How many minutes before an event starts to fire the "starting soon" alert
   pre_start_minutes: 10
 
+  # Your local timezone — times in messages will be shown in this zone
+  # See: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  timezone: "Africa/Nairobi"
+
 sports:
   f1:
     enabled: true
     calendar_url: "https://raw.githubusercontent.com/sportstimes/f1/main/_db/f1/2026.json"
     label: "F1"
-    race_day_message: "🏎️ Race Day! {name} starts today at {time} UTC."
-    pre_start_message: "🏁 {name} starts in ~{minutes} minutes ({time} UTC). Get ready!"
+    race_day_message: "🏎️ Race Day! {name} starts today at {time} EAT."
+    pre_start_message: "🏁 {name} starts in ~{minutes} minutes ({time} EAT). Get ready!"
 
   world_cup:
     enabled: true
     calendar_url: "https://raw.githubusercontent.com/openfootball/world-cup.json/master/2026/worldcup.json"
     label: "World Cup 2026"
-    race_day_message: "⚽ Match Day! {name} kicks off today at {time} UTC."
-    pre_start_message: "⚽ {name} kicks off in ~{minutes} minutes ({time} UTC). Let's go!"
+    race_day_message: "⚽ Match Day! {name} kicks off today at {time} EAT."
+    pre_start_message: "⚽ {name} kicks off in ~{minutes} minutes ({time} EAT). Let's go!"
