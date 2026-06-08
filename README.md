@@ -40,12 +40,36 @@ linear-tinker/
 
 The workflow runs automatically every day at 06:00 UTC. You can also trigger it manually from the **Actions** tab via **workflow_dispatch**.
 
+## Demo
+
+To test the full notification path locally without waiting for a race day:
+
+```powershell
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Set your ntfy topic (PowerShell)
+$env:NTFY_TOPIC = "your_topic_here"
+
+# 3. Run — reports no race if today isn't a GP day
+python scripts/notifier.py
+```
+
+To force a notification, temporarily hardcode a known race date inside `check_f1_schedule()`:
+
+```python
+# swap the live date line for a fixed one
+from datetime import date
+today = date(2026, 6, 14)  # Barcelona GP
+```
+
+Run it, notification lands on your phone, then revert.
+
 ## Dependencies
 
 | Package | Purpose |
 |---|---|
 | `requests` | HTTP calls to fetch the calendar and post notifications |
-| `icalendar` | Parses the `.ics` calendar feed |
 | `pytz` | Timezone-aware date comparison |
 
 ## Configuration
@@ -53,4 +77,4 @@ The workflow runs automatically every day at 06:00 UTC. You can also trigger it 
 | Variable | Default | Description |
 |---|---|---|
 | `NTFY_TOPIC` | `my_testing_f1_topic_999` | The ntfy.sh topic to push alerts to. Set via GitHub secret. |
-| `ICS_URL` | f1calendar.com feed | F1 race-only ICS calendar URL. |
+| `CALENDAR_URL` | sportstimes GitHub JSON | F1 race calendar source. |
