@@ -14,6 +14,7 @@ from pathlib import Path
 
 import requests
 import yaml
+import pytz
 
 # ---------------------------------------------------------------------------
 # Config
@@ -35,6 +36,12 @@ def load_config() -> dict:
 def get_ntfy_topic(cfg: dict) -> str:
     # Env var (GitHub secret) takes priority over config file
     return os.getenv("NTFY_TOPIC", cfg["notifications"]["ntfy_topic"])
+
+
+def local_time_str(dt: datetime, tz_name: str) -> str:
+    """Convert a UTC-aware datetime to a formatted time string in the user's timezone."""
+    tz = pytz.timezone(tz_name)
+    return dt.astimezone(tz).strftime("%H:%M")
 
 
 # ---------------------------------------------------------------------------
@@ -60,8 +67,10 @@ def send_notification(topic: str, title: str, message: str, tags: str = "bell"):
 
 def run_morning(cfg: dict, topic: str):
     """Send a heads-up for every event starting today."""
-    today = datetime.now(timezone.utc).date()
-    print(f"[morning] Checking for events on {today}")
+    tz_name = cfg["notifications"].get("timezone", "UTC")
+    tz = pytz.timezone(tz_name)
+    today = datetime.now(tz).date()
+    print(f"[morning] Checking for events on {today} ({tz_name})")
 
     found_any = False
     for sport_key, sport_cfg in cfg["sports"].items():
@@ -72,9 +81,10 @@ def run_morning(cfg: dict, topic: str):
         events = module.get_events(sport_cfg["calendar_url"])
 
         for event in events:
-            if event["start_time"].date() == today:
+            # Compare against today in the user's local timezone
+            if event["start_time"].astimezone(tz).date() == today:
                 found_any = True
-                time_str = event["start_time"].strftime("%H:%M")
+                time_str = local_time_str(event["start_time"], tz_name)
                 message = sport_cfg["race_day_message"].format(
                     name=event["name"],
                     time=time_str,
@@ -92,6 +102,7 @@ def run_morning(cfg: dict, topic: str):
 
 def run_prestart(cfg: dict, topic: str):
     """Send a 'starting soon' alert for events within pre_start_minutes."""
+    tz_name = cfg["notifications"].get("timezone", "UTC")
     now = datetime.now(timezone.utc)
     window = cfg["notifications"]["pre_start_minutes"]
     soon = now + timedelta(minutes=window)
@@ -111,7 +122,7 @@ def run_prestart(cfg: dict, topic: str):
             if now <= start <= soon:
                 found_any = True
                 minutes_away = int((start - now).total_seconds() / 60)
-                time_str = start.strftime("%H:%M")
+                time_str = local_time_str(start, tz_name)
                 message = sport_cfg["pre_start_message"].format(
                     name=event["name"],
                     time=time_str,
