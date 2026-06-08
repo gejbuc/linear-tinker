@@ -1,66 +1,153 @@
 # scripts/notifier.py
-import requests
-from datetime import datetime
-import pytz
+"""
+Orchestrator for sports notifications.
+
+Modes (set via MODE environment variable):
+  morning   — fires a "match/race day" alert for every event starting today (default)
+  prestart  — fires a "starting soon" alert for events within pre_start_minutes
+"""
 import os
 import sys
+import argparse
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
-# 1. Configuration
-# JSON calendar maintained by sportstimes — reliable and up to date
-CALENDAR_URL = "https://raw.githubusercontent.com/sportstimes/f1/main/_db/f1/2026.json"
+import requests
+import yaml
 
-# We will grab this from GitHub Secrets later so it stays private
-NTFY_TOPIC = os.getenv("NTFY_TOPIC", "my_testing_f1_topic_999")
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+
+CONFIG_PATH = Path(__file__).parent.parent / "config.yaml"
+
+SPORT_MODULES = {
+    "f1": "sports.f1",
+    "world_cup": "sports.world_cup",
+}
 
 
-def check_f1_schedule():
-    print("Fetching F1 Calendar...")
-    response = requests.get(CALENDAR_URL, timeout=10)
+def load_config() -> dict:
+    with open(CONFIG_PATH, encoding="utf-8") as f:
+        return yaml.safe_load(f)
 
-    if response.status_code != 200:
-        print(f"Failed to fetch calendar: {response.status_code}")
-        sys.exit(1)
 
-    data = response.json()
+def get_ntfy_topic(cfg: dict) -> str:
+    # Env var (GitHub secret) takes priority over config file
+    return os.getenv("NTFY_TOPIC", cfg["notifications"]["ntfy_topic"])
 
-    # Get current date in UTC
-    today = datetime.now(pytz.utc).date()
-    print(f"Checking for races on: {today}")
 
-    for race in data.get("races", []):
-        gp_time_str = race["sessions"].get("gp")
-        if not gp_time_str:
+# ---------------------------------------------------------------------------
+# Notification
+# ---------------------------------------------------------------------------
+
+def send_notification(topic: str, title: str, message: str, tags: str = "bell"):
+    response = requests.post(
+        f"https://ntfy.sh/{topic}",
+        data=message.encode("utf-8"),
+        headers={"Title": title, "Tags": tags},
+        timeout=10,
+    )
+    if response.status_code == 200:
+        print(f"  ✓ Sent: {message}")
+    else:
+        print(f"  ✗ ntfy returned HTTP {response.status_code}")
+
+
+# ---------------------------------------------------------------------------
+# Modes
+# ---------------------------------------------------------------------------
+
+def run_morning(cfg: dict, topic: str):
+    """Send a heads-up for every event starting today."""
+    today = datetime.now(timezone.utc).date()
+    print(f"[morning] Checking for events on {today}")
+
+    found_any = False
+    for sport_key, sport_cfg in cfg["sports"].items():
+        if not sport_cfg.get("enabled", False):
             continue
 
-        # Parse ISO timestamp and compare date
-        gp_time = datetime.fromisoformat(gp_time_str.replace("Z", "+00:00"))
+        module = __import__(SPORT_MODULES[sport_key], fromlist=["get_events"])
+        events = module.get_events(sport_cfg["calendar_url"])
 
-        if gp_time.date() == today:
-            name = f"{race['name']} Grand Prix"
-            print(f"RACE DAY! Found: {name}")
-            send_notification(name, gp_time)
-            return  # Exit after finding today's race
+        for event in events:
+            if event["start_time"].date() == today:
+                found_any = True
+                time_str = event["start_time"].strftime("%H:%M")
+                message = sport_cfg["race_day_message"].format(
+                    name=event["name"],
+                    time=time_str,
+                )
+                send_notification(
+                    topic=topic,
+                    title=sport_cfg["label"],
+                    message=message,
+                    tags="calendar,bell",
+                )
 
-    print("No Grand Prix scheduled for today. Going back to sleep.")
+    if not found_any:
+        print("  No events today. Going back to sleep.")
 
 
-def send_notification(race_name, start_time):
-    # Format the time nicely (e.g., 14:00 UTC)
-    time_str = start_time.strftime('%H:%M UTC')
+def run_prestart(cfg: dict, topic: str):
+    """Send a 'starting soon' alert for events within pre_start_minutes."""
+    now = datetime.now(timezone.utc)
+    window = cfg["notifications"]["pre_start_minutes"]
+    soon = now + timedelta(minutes=window)
+    print(f"[prestart] Checking for events between {now:%H:%M} and {soon:%H:%M} UTC")
 
-    message = f"🏎️ It's Race Day! {race_name} starts today at {time_str}."
+    found_any = False
+    for sport_key, sport_cfg in cfg["sports"].items():
+        if not sport_cfg.get("enabled", False):
+            continue
 
-    # Send the push notification via NTFY
-    requests.post(
-        f"https://ntfy.sh/{NTFY_TOPIC}",
-        data=message.encode(encoding='utf-8'),
-        headers={
-            "Title": "F1 Alert",
-            "Tags": "checkered_flag,race_car"  # Adds nice emojis to the notification
-        }
-    )
-    print("Notification dispatched successfully!")
+        module = __import__(SPORT_MODULES[sport_key], fromlist=["get_events"])
+        events = module.get_events(sport_cfg["calendar_url"])
 
+        for event in events:
+            start = event["start_time"]
+            # Fire if event starts within the next `window` minutes
+            if now <= start <= soon:
+                found_any = True
+                minutes_away = int((start - now).total_seconds() / 60)
+                time_str = start.strftime("%H:%M")
+                message = sport_cfg["pre_start_message"].format(
+                    name=event["name"],
+                    time=time_str,
+                    minutes=minutes_away,
+                )
+                send_notification(
+                    topic=topic,
+                    title=sport_cfg["label"],
+                    message=message,
+                    tags="stopwatch,bell",
+                )
+
+    if not found_any:
+        print("  No events starting soon.")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    check_f1_schedule()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--mode",
+        choices=["morning", "prestart"],
+        default=os.getenv("MODE", "morning"),
+        help="morning = race day alert, prestart = T-minus alert",
+    )
+    args = parser.parse_args()
+
+    cfg = load_config()
+    topic = get_ntfy_topic(cfg)
+
+    print(f"Mode: {args.mode} | Topic: {topic}")
+
+    if args.mode == "morning":
+        run_morning(cfg, topic)
+    elif args.mode == "prestart":
+        run_prestart(cfg, topic)
