@@ -24,8 +24,10 @@ def check_f1_schedule():
     data = response.json()
 
     # Get current date in UTC
-    today = datetime.now(pytz.utc).date()
-    print(f"Checking for races on: {today}")
+    # TEMP: hardcoded to Barcelona GP for end-to-end demo — revert after test
+    from datetime import date
+    today = date(2026, 6, 14)
+    print(f"Checking for races on: {today} (DEMO MODE)")
 
     for race in data.get("races", []):
         gp_time_str = race["sessions"].get("gp")
