@@ -1,0 +1,24 @@
+# config.yaml — edit this file to control all notification behaviour
+
+notifications:
+  # Your ntfy.sh topic. Can also be set via NTFY_TOPIC environment variable
+  # (env var takes priority, used for GitHub Actions secret)
+  ntfy_topic: "ntfy-gejbuc-f1"
+
+  # How many minutes before an event starts to fire the "starting soon" alert
+  pre_start_minutes: 10
+
+sports:
+  f1:
+    enabled: true
+    calendar_url: "https://raw.githubusercontent.com/sportstimes/f1/main/_db/f1/2026.json"
+    label: "F1"
+    race_day_message: "🏎️ Race Day! {name} starts today at {time} UTC."
+    pre_start_message: "🏁 {name} starts in ~{minutes} minutes ({time} UTC). Get ready!"
+
+  world_cup:
+    enabled: true
+    calendar_url: "https://raw.githubusercontent.com/openfootball/world-cup.json/master/2026/worldcup.json"
+    label: "World Cup 2026"
+    race_day_message: "⚽ Match Day! {name} kicks off today at {time} UTC."
+    pre_start_message: "⚽ {name} kicks off in ~{minutes} minutes ({time} UTC). Let's go!"
