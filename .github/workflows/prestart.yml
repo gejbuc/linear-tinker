@@ -3,9 +3,9 @@ name: Pre-Start Alert
 
 on:
   schedule:
-    # Every 5 minutes between 12:00 and 22:00 UTC
-    # Covers all F1 and World Cup kick-off windows
-    - cron: '*/5 12-22 * * *'
+    # Every 5 minutes between 04:00 and 23:00 UTC (07:00–02:00 EAT)
+    # Covers all F1 and World Cup kick-off windows for EAT timezone
+    - cron: '*/5 4-23 * * *'
   workflow_dispatch:
 
 jobs:
