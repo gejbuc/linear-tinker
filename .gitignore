@@ -1,3 +1,9 @@
 # Documentation (keep local)
 *.md
 !README.md
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
