@@ -98,6 +98,12 @@ def run_morning(cfg: dict, topic: str):
 
     if not found_any:
         print("  No events today. Going back to sleep.")
+        send_notification(
+            topic=topic,
+            title="No Events Today",
+            message="📅 No F1 or World Cup events today. Enjoy the quiet.",
+            tags="zzz",
+        )
 
 
 def run_prestart(cfg: dict, topic: str):
