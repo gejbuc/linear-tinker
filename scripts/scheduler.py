@@ -69,6 +69,7 @@ def schedule_prestart(
         return
 
     # cron-job.org schedule: exact hour+minute+day+month, any weekday
+    # Headers/body are patched in a second request — API rejects them in the initial PUT
     body = {
         "job": {
             "title": f"{JOB_TITLE_PREFIX}:{event_name[:40]}",
@@ -85,13 +86,6 @@ def schedule_prestart(
                 "wdays":   [-1],
                 "expiresAt": int(start_time.timestamp()) + 300,  # expire 5 min after start
             },
-            "requestHeaders": {
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {github_token}",
-                "User-Agent": "linear-tinker",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-            "requestBody": '{"ref":"master"}',
         }
     }
 
@@ -105,5 +99,30 @@ def schedule_prestart(
     if resp.status_code == 200:
         job_id = resp.json().get("jobId")
         print(f"  ⏰ Scheduled prestart job {job_id} for '{event_name}' at {fire_time:%H:%M UTC}")
+
+        # Patch headers and body separately — cron-job.org API requires this two-step approach
+        patch = {
+            "job": {
+                "extendedData": {
+                    "headers": {
+                        "Accept": "application/vnd.github+json",
+                        "Authorization": f"Bearer {github_token}",
+                        "User-Agent": "linear-tinker",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                    "body": '{"ref":"master"}',
+                }
+            }
+        }
+        patch_resp = requests.patch(
+            f"{CRONJOB_API}/jobs/{job_id}",
+            json=patch,
+            headers=_headers(cronjob_token),
+            timeout=10,
+        )
+        if patch_resp.status_code == 200:
+            print(f"  ✓ Headers patched onto job {job_id}")
+        else:
+            print(f"  ✗ Header patch failed for job {job_id}: HTTP {patch_resp.status_code}")
     else:
         print(f"  ✗ Failed to schedule prestart for '{event_name}': HTTP {resp.status_code} {resp.text}")
