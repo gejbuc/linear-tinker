@@ -77,11 +77,9 @@ def run_morning(cfg: dict, topic: str):
     """Send a heads-up for every event starting today, then schedule prestart jobs."""
     tz_name = cfg["notifications"].get("timezone", "UTC")
     tz = pytz.timezone(tz_name)
-    # DEMO: hardcoded to Barcelona GP — revert after test
-    from datetime import date
-    today = date(2026, 6, 14)
+    today = datetime.now(tz).date()
     pre_start_minutes = cfg["notifications"]["pre_start_minutes"]
-    print(f"[morning] Checking for events on {today} ({tz_name}) DEMO MODE")
+    print(f"[morning] Checking for events on {today} ({tz_name})")
 
     cronjob_token = get_cronjob_token()
     github_token = get_github_token()
