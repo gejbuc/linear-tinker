@@ -2,10 +2,8 @@
 name: Pre-Start Alert
 
 on:
-  schedule:
-    # Every 5 minutes, all day — covers matches at any hour including
-    # early morning UTC kickoffs (03:00-07:00 EAT) common in World Cup
-    - cron: '*/5 * * * *'
+  # Triggered exclusively by cron-job.org at the exact pre-start time
+  # Jobs are created dynamically by the morning workflow — no polling
   workflow_dispatch:
 
 jobs:
