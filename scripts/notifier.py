@@ -38,6 +38,14 @@ def get_ntfy_topic(cfg: dict) -> str:
     return os.getenv("NTFY_TOPIC", cfg["notifications"]["ntfy_topic"])
 
 
+def get_cronjob_token() -> str | None:
+    return os.getenv("CRONJOB_TOKEN")
+
+
+def get_github_token() -> str | None:
+    return os.getenv("GITHUB_TOKEN")
+
+
 def local_time_str(dt: datetime, tz_name: str) -> str:
     """Convert a UTC-aware datetime to a formatted time string in the user's timezone."""
     tz = pytz.timezone(tz_name)
@@ -66,11 +74,23 @@ def send_notification(topic: str, title: str, message: str, tags: str = "bell"):
 # ---------------------------------------------------------------------------
 
 def run_morning(cfg: dict, topic: str):
-    """Send a heads-up for every event starting today."""
+    """Send a heads-up for every event starting today, then schedule prestart jobs."""
     tz_name = cfg["notifications"].get("timezone", "UTC")
     tz = pytz.timezone(tz_name)
     today = datetime.now(tz).date()
+    pre_start_minutes = cfg["notifications"]["pre_start_minutes"]
     print(f"[morning] Checking for events on {today} ({tz_name})")
+
+    cronjob_token = get_cronjob_token()
+    github_token = get_github_token()
+    scheduling_enabled = bool(cronjob_token and github_token)
+
+    # Import scheduler lazily so local runs without tokens still work
+    if scheduling_enabled:
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent))
+        from scheduler import cleanup_stale_jobs, schedule_prestart
+        cleanup_stale_jobs(cronjob_token)
 
     found_any = False
     for sport_key, sport_cfg in cfg["sports"].items():
@@ -95,6 +115,16 @@ def run_morning(cfg: dict, topic: str):
                     message=message,
                     tags="calendar,bell",
                 )
+
+                # Schedule a precise prestart alert via cron-job.org
+                if scheduling_enabled:
+                    schedule_prestart(
+                        event_name=event["name"],
+                        start_time=event["start_time"],
+                        pre_start_minutes=pre_start_minutes,
+                        cronjob_token=cronjob_token,
+                        github_token=github_token,
+                    )
 
     if not found_any:
         print("  No events today. Going back to sleep.")
