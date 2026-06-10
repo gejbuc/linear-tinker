@@ -1,0 +1,17 @@
+# .github/workflows/keepalive.yml
+name: Keepalive
+
+on:
+  schedule:
+    # Runs every Sunday at 05:00 UTC (08:00 EAT)
+    - cron: '0 5 * * 0'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Keep workflows active
+        uses: liskin/gh-workflow-keepalive@v1
