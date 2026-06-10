@@ -30,5 +30,7 @@ jobs:
       - name: Run Morning Check
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          CRONJOB_TOKEN: ${{ secrets.CRONJOB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.MORNING_GH_PAT }}
           MODE: morning
         run: python scripts/notifier.py --mode morning
