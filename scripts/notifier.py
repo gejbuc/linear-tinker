@@ -173,6 +173,48 @@ def run_prestart(cfg: dict, topic: str):
 
     if not found_any:
         print("  No events starting soon.")
+        # Find the next upcoming event across all sports and notify
+        now = datetime.now(timezone.utc)
+        next_event = None
+        next_sport_cfg = None
+        for sport_key, sport_cfg in cfg["sports"].items():
+            if not sport_cfg.get("enabled", False):
+                continue
+            module = __import__(SPORT_MODULES[sport_key], fromlist=["get_events"])
+            events = module.get_events(sport_cfg["calendar_url"])
+            for event in events:
+                if event["start_time"] > now:
+                    if next_event is None or event["start_time"] < next_event["start_time"]:
+                        next_event = event
+                        next_sport_cfg = sport_cfg
+
+        if next_event:
+            tz = pytz.timezone(tz_name)
+            delta = next_event["start_time"] - now
+            days = delta.days
+            hours, remainder = divmod(delta.seconds, 3600)
+            minutes = remainder // 60
+            local_dt = next_event["start_time"].astimezone(tz)
+            time_str = local_dt.strftime("%H:%M EAT, %b %d")
+            if days > 0:
+                countdown = f"{days}d {hours}h"
+            elif hours > 0:
+                countdown = f"{hours}h {minutes}m"
+            else:
+                countdown = f"{minutes}m"
+            send_notification(
+                topic=topic,
+                title="Nothing Yet",
+                message=f"⏳ No event starting soon. Next up: {next_event['name']} in {countdown} ({time_str}).",
+                tags="hourglass_flowing_sand",
+            )
+        else:
+            send_notification(
+                topic=topic,
+                title="Nothing Yet",
+                message="⏳ No upcoming events found in the calendar.",
+                tags="hourglass_flowing_sand",
+            )
 
 
 # ---------------------------------------------------------------------------
