@@ -2,10 +2,7 @@
 name: Morning Sports Checker
 
 on:
-  # Triggered externally by cron-job.org at 09:00 UTC (12:00 EAT) daily
-  # Kept as fallback in case external trigger misses
-  schedule:
-    - cron: '0 9 * * *'
+  # Triggered exclusively by cron-job.org at 09:00 UTC (12:00 EAT) daily
   workflow_dispatch:
 
 jobs:
