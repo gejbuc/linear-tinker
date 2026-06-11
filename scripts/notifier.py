@@ -74,12 +74,13 @@ def send_notification(topic: str, title: str, message: str, tags: str = "bell"):
 # ---------------------------------------------------------------------------
 
 def run_morning(cfg: dict, topic: str):
-    """Send a heads-up for every event starting today, then schedule prestart jobs."""
+    """Send a heads-up for every event in the next 24 hours, then schedule prestart jobs."""
     tz_name = cfg["notifications"].get("timezone", "UTC")
     tz = pytz.timezone(tz_name)
-    today = datetime.now(tz).date()
+    now = datetime.now(timezone.utc)
+    window_end = now + timedelta(hours=24)
     pre_start_minutes = cfg["notifications"]["pre_start_minutes"]
-    print(f"[morning] Checking for events on {today} ({tz_name})")
+    print(f"[morning] Scanning events from now until {window_end.astimezone(tz).strftime('%H:%M EAT, %b %d')} ({tz_name})")
 
     cronjob_token = get_cronjob_token()
     github_token = get_github_token()
@@ -101,10 +102,13 @@ def run_morning(cfg: dict, topic: str):
         events = module.get_events(sport_cfg["calendar_url"])
 
         for event in events:
-            # Compare against today in the user's local timezone
-            if event["start_time"].astimezone(tz).date() == today:
+            start = event["start_time"]
+            # Include any event starting in the next 24 hours
+            # This catches early-morning EAT kickoffs (e.g. 03:00 EAT = 00:00 UTC)
+            # that would be missed by a simple "today" date comparison
+            if now < start <= window_end:
                 found_any = True
-                time_str = local_time_str(event["start_time"], tz_name)
+                time_str = local_time_str(start, tz_name)
                 message = sport_cfg["race_day_message"].format(
                     name=event["name"],
                     time=time_str,
@@ -120,7 +124,7 @@ def run_morning(cfg: dict, topic: str):
                 if scheduling_enabled:
                     schedule_prestart(
                         event_name=event["name"],
-                        start_time=event["start_time"],
+                        start_time=start,
                         pre_start_minutes=pre_start_minutes,
                         cronjob_token=cronjob_token,
                         github_token=github_token,
