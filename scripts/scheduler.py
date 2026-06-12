@@ -68,7 +68,8 @@ def schedule_prestart(
         print(f"  ⚠ Skipping prestart for '{event_name}' — fire time {fire_time:%H:%M UTC} already passed")
         return
 
-    # cron-job.org schedule: exact hour+minute+day+month, any weekday
+    # cron-job.org requires wildcard mdays/months and expiresAt=0 or nextExecution stays null.
+    # Jobs are deleted by cleanup_stale_jobs() on the next morning run before they can repeat.
     # Headers/body are patched in a second request — API rejects them in the initial PUT
     body = {
         "job": {
@@ -82,10 +83,10 @@ def schedule_prestart(
                 "timezone": "UTC",
                 "hours":   [fire_time.hour],
                 "minutes": [fire_time.minute],
-                "mdays":   [fire_time.day],
-                "months":  [fire_time.month],
+                "mdays":   [-1],
+                "months":  [-1],
                 "wdays":   [-1],
-                "expiresAt": int(start_time.timestamp()) + 3600,  # expire 60 min after start (gives cron-job.org room to be late)
+                "expiresAt": 0,
             },
         }
     }
