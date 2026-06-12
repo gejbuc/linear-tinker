@@ -77,6 +77,7 @@ def schedule_prestart(
             "enabled": True,
             "saveResponses": True,
             "requestMethod": 1,  # POST
+            "requestTimeout": 30,  # match the working morning trigger job
             "schedule": {
                 "timezone": "UTC",
                 "hours":   [fire_time.hour],
@@ -103,11 +104,17 @@ def schedule_prestart(
         # Patch headers and body separately — cron-job.org API requires this two-step approach
         patch = {
             "job": {
+                "notification": {
+                    "onFailure": True,
+                    "onFailureCount": 1,
+                    "onSuccess": False,
+                    "onDisable": False,
+                },
                 "extendedData": {
                     "headers": {
                         "Accept": "application/vnd.github+json",
                         "Authorization": f"Bearer {github_token}",
-                        "User-Agent": "linear-tinker",
+                        "User-Agent": "cron-job-org-trigger",
                         "X-GitHub-Api-Version": "2022-11-28",
                     },
                     "body": '{"ref":"master"}',
