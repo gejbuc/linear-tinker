@@ -84,7 +84,7 @@ def schedule_prestart(
                 "mdays":   [fire_time.day],
                 "months":  [fire_time.month],
                 "wdays":   [-1],
-                "expiresAt": int(start_time.timestamp()) + 300,  # expire 5 min after start
+                "expiresAt": int(start_time.timestamp()) + 3600,  # expire 60 min after start (gives cron-job.org room to be late)
             },
         }
     }
