@@ -5,6 +5,7 @@ Orchestrator for sports notifications.
 Modes (set via MODE environment variable):
   morning   — fires a "match/race day" alert for every event starting today (default)
   prestart  — fires a "starting soon" alert for events within pre_start_minutes
+  afternoon — re-sends the morning race day alerts without scanning or scheduling
 """
 import os
 import sys
@@ -221,6 +222,42 @@ def run_prestart(cfg: dict, topic: str):
             )
 
 
+def run_afternoon(cfg: dict, topic: str):
+    """Re-send the morning race day alerts without scanning or scheduling prestart jobs."""
+    tz_name = cfg["notifications"].get("timezone", "UTC")
+    tz = pytz.timezone(tz_name)
+    now = datetime.now(timezone.utc)
+    window_end = now + timedelta(hours=24)
+    print(f"[afternoon] Re-sending today's alerts (no scheduling)")
+
+    found_any = False
+    for sport_key, sport_cfg in cfg["sports"].items():
+        if not sport_cfg.get("enabled", False):
+            continue
+
+        module = __import__(SPORT_MODULES[sport_key], fromlist=["get_events"])
+        events = module.get_events(sport_cfg["calendar_url"])
+
+        for event in events:
+            start = event["start_time"]
+            if now < start <= window_end:
+                found_any = True
+                time_str = local_time_str(start, tz_name)
+                message = sport_cfg["race_day_message"].format(
+                    name=event["name"],
+                    time=time_str,
+                )
+                send_notification(
+                    topic=topic,
+                    title=sport_cfg["label"],
+                    message=message,
+                    tags="calendar,bell",
+                )
+
+    if not found_any:
+        print("  No events remaining today.")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -229,9 +266,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
-        choices=["morning", "prestart"],
+        choices=["morning", "prestart", "afternoon"],
         default=os.getenv("MODE", "morning"),
-        help="morning = race day alert, prestart = T-minus alert",
+        help="morning = race day alert, prestart = T-minus alert, afternoon = reminder resend",
     )
     args = parser.parse_args()
 
@@ -244,3 +281,5 @@ if __name__ == "__main__":
         run_morning(cfg, topic)
     elif args.mode == "prestart":
         run_prestart(cfg, topic)
+    elif args.mode == "afternoon":
+        run_afternoon(cfg, topic)
