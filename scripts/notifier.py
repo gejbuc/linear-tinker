@@ -226,9 +226,8 @@ def run_afternoon(cfg: dict, topic: str):
     """Re-send today's race day alerts without scanning or scheduling prestart jobs."""
     tz_name = cfg["notifications"].get("timezone", "UTC")
     now = datetime.now(timezone.utc)
-    # Only resend events that fall on today's UTC date (not tomorrow)
-    today = now.date()
-    print(f"[afternoon] Re-sending alerts for {today} (no scheduling)")
+    window_end = now + timedelta(hours=18)
+    print(f"[afternoon] Re-sending alerts within next 18h (no scheduling)")
 
     found_any = False
     for sport_key, sport_cfg in cfg["sports"].items():
@@ -240,7 +239,7 @@ def run_afternoon(cfg: dict, topic: str):
 
         for event in events:
             start = event["start_time"]
-            if start.date() == today:
+            if now < start <= window_end:
                 found_any = True
                 time_str = local_time_str(start, tz_name)
                 message = sport_cfg["race_day_message"].format(
